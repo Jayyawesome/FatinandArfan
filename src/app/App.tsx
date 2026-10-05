@@ -1,4 +1,5 @@
 import { Fragment, useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence, MotionConfig, useReducedMotion } from "motion/react";
 import {
   MapPin,
@@ -269,8 +270,9 @@ function EntranceScreen({ onActivate, onEnter, onFinish }: {
         animate={{ opacity: opening ? 0 : 1, scale: opening ? 0.9 : 1 }} transition={{ duration: 0.2 }}>
         <p className="entrance-eyebrow font-montserrat">Jemputan Perkahwinan</p>
         <button type="button" onClick={handleClick} disabled={opening}
-          className="opening-emblem-button fa-seal" aria-label="Buka kad Fatin dan Arfan">
-          <span className="font-greatvibes" aria-hidden="true">F<span className="fa-seal-amp">&amp;</span>A</span>
+          className="opening-emblem-button" aria-label="Buka kad Fatin dan Arfan">
+          <Image src="/fatin-arfan-logo.png" width={1254} height={1254} priority sizes="176px"
+            alt="" aria-hidden="true" draggable={false} className="opening-emblem-image" />
         </button>
         <h1 className="entrance-names font-greatvibes">Fatin <AestheticAmpersand /> Arfan</h1>
         <p className="entrance-date font-playfair">Ahad, 8 November 2026</p>
