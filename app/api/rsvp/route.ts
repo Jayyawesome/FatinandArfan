@@ -1,161 +1,166 @@
 import { NextResponse } from "next/server";
+import { attendanceOptions, type AttendanceStatus, type RsvpSubmission } from "@/lib/rsvp";
+import { invitationSupabaseConfig } from "@/lib/rsvp-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const storageLocation = "supabase://public.rsvp_submissions";
-const attendanceOptions = new Set(["Hadir", "Tidak Hadir", "Mungkin"]);
+const storageLocation = "supabase://public.fatin_arfan_rsvps";
+const validAttendance = new Set<string>(attendanceOptions);
 const noStoreHeaders = { "Cache-Control": "no-store" };
 
-type Submission = {
-  timestamp: string;
+type SubmissionInput = {
   name: string;
-  attendance: string;
+  attendance: AttendanceStatus;
   pax: number;
   phone: string;
   wish: string;
-  source: string;
 };
 
-type PublicSubmissionRow = {
+type PublicWishRow = {
   created_at: string;
   name: string;
-  attendance: string;
-  pax: number;
   wish: string;
-  source: string;
 };
+
+type SavedReceiptRow = PublicWishRow & { id: string };
 
 class InputError extends Error {}
 
 function cleanString(value: unknown, maxLength: number, label: string, required = false) {
-  const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (value != null && typeof value !== "string") {
+    throw new InputError(`${label} tidak sah.`);
+  }
+  const normalized = (value ?? "").replace(/\s+/g, " ").trim();
   if (required && normalized.length === 0) throw new InputError(`${label} diperlukan.`);
   if (normalized.length > maxLength) throw new InputError(`${label} mesti ${maxLength} aksara atau kurang.`);
   return normalized;
 }
 
-function normalizeSubmissionInput(body: Record<string, unknown>): Omit<Submission, "timestamp" | "source"> {
-  const name = cleanString(body.name, 80, "Nama", true);
-  const phone = cleanString(body.phone, 30, "No telefon");
-  const wish = cleanString(body.wish, 240, "Ucapan");
-  const attendance = cleanString(body.attendance, 20, "Kehadiran", true);
-  if (!attendanceOptions.has(attendance)) throw new InputError("Pilihan kehadiran tidak sah.");
-
-  const pax = Number(body.pax);
-  if (!Number.isInteger(pax) || pax < 1 || pax > 10) {
-    throw new InputError("Jumlah pax mesti antara 1 hingga 10.");
+function normalizeSubmissionInput(body: unknown): SubmissionInput {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new InputError("Maklumat RSVP tidak sah.");
   }
 
-  return { name, attendance, pax, phone, wish };
+  const fields = body as Record<string, unknown>;
+  const name = cleanString(fields.name, 80, "Nama", true);
+  const phone = cleanString(fields.phone, 30, "No telefon");
+  const wish = cleanString(fields.wish, 240, "Ucapan");
+  const attendance = cleanString(fields.attendance, 20, "Kehadiran", true);
+  if (!validAttendance.has(attendance)) throw new InputError("Pilihan kehadiran tidak sah.");
+
+  const pax = fields.pax;
+  if (typeof pax !== "number" || !Number.isInteger(pax) || pax < 1 || pax > 10) {
+    throw new InputError("Jumlah tetamu mesti antara 1 hingga 10.");
+  }
+
+  return { name, attendance: attendance as AttendanceStatus, pax, phone, wish };
 }
 
-function getSupabaseConfig() {
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+function getRsvpConfig() {
+  const url = process.env.RSVP_API_URL?.trim() || invitationSupabaseConfig.endpointUrl;
+  const key = process.env.RSVP_API_KEY?.trim() || invitationSupabaseConfig.accessKey;
 
-  if (!url || !key) {
-    return null;
-  }
-
-  return { url: url.replace(/\/$/, ""), key };
+  return url && key ? { url: url.replace(/\/$/, ""), key } : null;
 }
 
 async function callSupabaseRpc<T>(functionName: string, parameters: Record<string, unknown>): Promise<T> {
-  const config = getSupabaseConfig();
-  if (!config) throw new Error("Supabase environment variables are not configured.");
-  const { url, key } = config;
-  const response = await fetch(`${url}/rest/v1/rpc/${functionName}`, {
+  const config = getRsvpConfig();
+  if (!config) throw new Error("RSVP storage is unavailable.");
+
+  const response = await fetch(config.url, {
     method: "POST",
     headers: {
-      apikey: key,
+      "x-invitation-key": config.key,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(parameters),
+    body: JSON.stringify({
+      operation: functionName === "submit_fatin_arfan_rsvp" ? "save" : "list",
+      parameters,
+    }),
     cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
   });
 
-  const responseText = await response.text();
   if (!response.ok) {
-    throw new Error(`Supabase RPC ${functionName} failed with status ${response.status}.`);
+    throw new Error("RSVP storage request failed.");
   }
 
-  return (responseText ? JSON.parse(responseText) : null) as T;
+  return await response.json() as T;
 }
 
-async function listPublicSubmissions(): Promise<Submission[]> {
-  const rows = await callSupabaseRpc<PublicSubmissionRow[]>("list_public_rsvps", { p_limit: 20 });
-  return rows.map((row) => ({
-    timestamp: row.created_at,
-    name: row.name,
-    attendance: row.attendance,
-    pax: row.pax,
-    phone: "",
-    wish: row.wish,
-    source: row.source,
-  }));
+function publicWish(row: PublicWishRow): RsvpSubmission {
+  return { timestamp: row.created_at, name: row.name, wish: row.wish };
+}
+
+async function listPublicWishes(): Promise<RsvpSubmission[]> {
+  const rows = await callSupabaseRpc<PublicWishRow[]>("list_fatin_arfan_wishes", { p_limit: 20 });
+  return rows.map(publicWish);
 }
 
 export async function GET() {
-  if (!getSupabaseConfig()) {
-    return NextResponse.json(
-      { submissions: [], configured: false, storage: null },
-      { headers: noStoreHeaders },
-    );
-  }
-
   try {
-    const submissions = await listPublicSubmissions();
+    const submissions = await listPublicWishes();
     return NextResponse.json(
       { submissions, configured: true, storage: storageLocation },
       { headers: noStoreHeaders },
     );
-  } catch (error) {
-    console.error("Unable to read RSVP submissions from Supabase.", error);
+  } catch {
+    console.error("Unable to read public wedding wishes.");
     return NextResponse.json(
-      { error: "Senarai RSVP tidak dapat dibaca." },
+      { error: "Ucapan tetamu tidak dapat dimuatkan. Sila cuba lagi.", configured: false },
       { status: 503, headers: noStoreHeaders },
     );
   }
 }
 
 export async function POST(request: Request) {
-  if (!getSupabaseConfig()) {
+  let input: SubmissionInput;
+  try {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      throw new InputError("Maklumat RSVP tidak sah.");
+    }
+    input = normalizeSubmissionInput(body);
+  } catch (error) {
     return NextResponse.json(
-      { error: "RSVP dalam talian belum tersedia. Sila hubungi Fatin melalui WhatsApp untuk mengesahkan kehadiran." },
-      { status: 503, headers: noStoreHeaders },
+      { error: error instanceof InputError ? error.message : "Maklumat RSVP tidak sah." },
+      { status: 400, headers: noStoreHeaders },
     );
   }
 
+  let receipt: SavedReceiptRow;
   try {
-    const body = (await request.json()) as Record<string, unknown>;
-    const input = normalizeSubmissionInput(body);
-    await callSupabaseRpc<null>("submit_rsvp", {
+    const rows = await callSupabaseRpc<SavedReceiptRow[]>("submit_fatin_arfan_rsvp", {
       p_name: input.name,
       p_attendance: input.attendance,
       p_pax: input.pax,
       p_phone: input.phone,
       p_wish: input.wish,
     });
-
-    const submission: Submission = {
-      timestamp: new Date().toISOString(),
-      ...input,
-      source: "Supabase RSVP API",
-    };
-    const submissions = await listPublicSubmissions();
-
+    if (!rows[0]) throw new Error("No saved RSVP receipt was returned.");
+    receipt = rows[0];
+  } catch {
+    console.error("Unable to save wedding RSVP.");
     return NextResponse.json(
-      { submission, submissions, configured: true, storage: storageLocation },
-      { status: 201, headers: noStoreHeaders },
-    );
-  } catch (error) {
-    const isInputError = error instanceof InputError;
-    if (!isInputError) console.error("Unable to store RSVP submission in Supabase.", error);
-
-    return NextResponse.json(
-      { error: isInputError ? error.message : "RSVP tidak dapat disimpan. Sila cuba lagi." },
-      { status: isInputError ? 400 : 503, headers: noStoreHeaders },
+      { error: "RSVP tidak dapat disimpan. Sila cuba lagi." },
+      { status: 503, headers: noStoreHeaders },
     );
   }
+
+  const submission = { id: receipt.id, ...publicWish(receipt) };
+  let submissions = input.wish ? [publicWish(receipt)] : [];
+  try {
+    submissions = await listPublicWishes();
+  } catch {
+    // The insert already succeeded: a wishes refresh must not invite a duplicate RSVP.
+    console.error("Wedding RSVP saved; public wishes refresh is unavailable.");
+  }
+
+  return NextResponse.json(
+    { submission, submissions, configured: true, storage: storageLocation },
+    { status: 201, headers: noStoreHeaders },
+  );
 }

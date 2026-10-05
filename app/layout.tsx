@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "../src/styles/index.css";
 
+const deploymentHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (deploymentHost ? `https://${deploymentHost}` : "http://localhost:3000");
+
 export const metadata: Metadata = {
-  metadataBase: process.env.NEXT_PUBLIC_SITE_URL ? new URL(process.env.NEXT_PUBLIC_SITE_URL) : undefined,
+  metadataBase: new URL(siteUrl),
   title: "Fatin & Arfan - Jemputan Perkahwinan | 8 November 2026",
   description:
     "Anda dijemput ke Majlis Perkahwinan Fatin Syazwani binti Jeffri dan Muhammad Arfan bin Mayiddin pada 8 November 2026, 12.00 tengah hari hingga 5.00 petang, di Dewan Semai Bakti Felda Teloi Timur, Kuala Ketil, Kedah.",

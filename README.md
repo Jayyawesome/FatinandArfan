@@ -2,6 +2,8 @@
 
 A mobile-first Next.js wedding invitation using the supplied `Main Page.png` and `Background.png` artwork.
 
+[Open the invitation](https://fatinandarfan.vercel.app/).
+
 The wedding details are transcribed from the supplied invitation:
 
 | Detail | Information |
@@ -31,22 +33,21 @@ npm start
 
 ## Deploy
 
-Import this repository into a Next.js hosting service such as Vercel and use the repository root as the project directory. The included `vercel.json` specifies the Next.js framework. Set `NEXT_PUBLIC_SITE_URL` to the actual public invitation URL, then rebuild, so shared preview images use the correct address.
+Import this repository into a Next.js hosting service such as Vercel and use the repository root as the project directory. The included `vercel.json` specifies the Next.js framework. Share preview URLs use `NEXT_PUBLIC_SITE_URL` when supplied, otherwise the Vercel production URL. Supply `NEXT_PUBLIC_SITE_URL` when deploying with a different host or custom address.
 
-The application includes a Node.js `/api/rsvp` route. Its database integration requires environment configuration; uploading this repository alone does not provision a database or make RSVP storage operational.
+The application includes a Node.js `/api/rsvp` route connected to the invitation's Supabase storage through a dedicated RSVP Edge Function. `src/lib/rsvp-config.ts` contains the endpoint and an invitation access key scoped to saving responses and listing public wishes. No project-wide database API key or service-role key is included in the repository. Hosting does not require additional RSVP environment variables for this configured invitation.
 
-## RSVP setup
+## Saved RSVP responses
 
-No live database is configured in this repository. The wishes list starts empty, with no sample guest responses. When storage is unconfigured, the API reports `configured: false` and accepts no submissions. Guests can prepare their attendance details in the form and open a WhatsApp message to Fatin; they must send that message in WhatsApp to confirm their response.
+Guests complete the RSVP form and select **Hantar RSVP**. A successful submission is saved to `public.fatin_arfan_rsvps`, and the invitation displays a confirmation without opening WhatsApp. Responses are stored centrally and survive browser refreshes or visits from another device. The wishes feed starts empty, returns the latest 20 nonempty wishes, and displays the four most recent on the card.
 
-To enable shared RSVP storage:
+The hosts can view names, attendance, party sizes, phone numbers, and wishes in the [Supabase Table Editor](https://supabase.com/dashboard/project/cirayzvtackcsxyzcwfx/editor?schema=public) by selecting **fatin_arfan_rsvps**. Sign in to the account that owns this project to view or export the full responses. The invitation uses a dedicated table in the existing free Supabase project `cirayzvtackcsxyzcwfx`.
 
-1. Create a separate Supabase project for Fatin and Arfan.
-2. Run the SQL files in `supabase/migrations/` in filename order. They create `public.rsvp_submissions`, the `submit_rsvp` and `list_public_rsvps` functions, and the guest permissions.
-3. Copy `.env.example` to `.env.local` for local development and supply `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. Add the same variables to the hosting project for deployment. Use the publishable key, not a service-role key.
-4. Restart locally or redeploy after changing environment variables. Verify one real test submission in the new project's Table Editor before sharing the invitation.
+Guest access allows inserting a response and reading only its public name, wish, identifier, and timestamp. The public `/api/rsvp` response contains names, wishes, and timestamps; a successful POST also returns the saved response identifier. Attendance, party size, and phone numbers are excluded from all public API responses and cannot be selected with the publishable key. Guests have no update or delete permission.
 
-Phone numbers are stored for the hosts and are excluded from the public wishes API. Public guests can submit responses and read names, attendance, party size, and wishes; the migrations grant no guest update or delete access. Do not reuse the previous invitation's database or credentials.
+`supabase/migrations/20261005145935_create_fatin_arfan_rsvps.sql` creates the dedicated table, row policies, column grants, and the `submit_fatin_arfan_rsvp` / `list_fatin_arfan_wishes` functions. The original migration files are retained for source history; the current invitation does not call their older table or functions.
+
+To use a different RSVP endpoint, supply `RSVP_API_URL` and `RSVP_API_KEY` in `.env.local` and in the hosting settings. These optional values override the configured invitation defaults; blank values use the defaults. The endpoint must accept an `x-invitation-key` header and a JSON body containing `operation` (`save` or `list`) plus `parameters`, and return the safe database receipt or public wish rows. Deploy the matching Edge Function and dedicated migration to the destination project. Keep project-wide database API keys and service-role or secret keys out of this repository. Restart locally or redeploy after changing configuration, then verify a real saved response in the destination project's Table Editor.
 
 ## Attribution
 

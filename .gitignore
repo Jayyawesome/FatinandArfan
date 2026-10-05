@@ -28,3 +28,6 @@ Thumbs.db
 artifacts/
 docs/
 *.docx
+
+# Supabase CLI cache
+supabase/.temp/

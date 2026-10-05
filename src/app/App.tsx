@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "motion/react";
+import { motion, AnimatePresence, MotionConfig, useReducedMotion } from "motion/react";
 import {
   MapPin,
   Phone,
@@ -14,6 +14,10 @@ import {
   Play,
   Pause,
   X,
+  Download,
+  ArrowRight,
+  CheckCircle2,
+  LoaderCircle,
 } from "lucide-react";
 import { PersistentAudioPlayer } from "../components/PersistentAudioPlayer";
 import type { AudioControllerHandle, AudioPlaybackState, AudioProgress } from "../components/PersistentAudioPlayer";
@@ -46,10 +50,8 @@ const contacts = [
 ];
 
 const giftDetails = {
-  title: "Hadiah Pengantin",
-  recipient: "Fatin Syazwani Binti Jeffri",
-  bank: "Hubungi keluarga untuk maklumat hadiah",
-  note: "Untuk hadiah atau pertanyaan, sila hubungi pihak keluarga melalui WhatsApp.",
+  title: "Tanda Kasih",
+  note: "Kehadiran dan doa anda sudah cukup bermakna. Buat yang ingin menitipkan hadiah, imbas kod QR di bawah.",
 };
 
 const fontStyle = `
@@ -128,7 +130,11 @@ async function postRsvpSubmission(form: RsvpFormState) {
       wish: form.wish,
     }),
   });
-  return parseRsvpResponse(response);
+  const result = await parseRsvpResponse(response);
+  if (response.status !== 201) {
+    throw new Error("Pengesahan simpanan RSVP tidak diterima. Sila cuba lagi.");
+  }
+  return result;
 }
 
 function malaysiaPhoneLinks(phone: string) {
@@ -199,7 +205,7 @@ function formatTwoDigits(value: number) {
 // ─── Ornament divider ─────────────────────────────────────────────────────────
 function OrnamentDivider() {
   return (
-    <div className="flex items-center justify-center gap-3 py-2 w-full">
+    <div className="flex items-center justify-center gap-3 py-2 w-full" aria-hidden="true">
       <div className="h-px flex-1 bg-gradient-to-r from-transparent to-amber-500/30" />
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <path d="M10 2C10 2 7 6 4 10C7 14 10 18 10 18C10 18 13 14 16 10C13 6 10 2 10 2Z" stroke="#b8894a" strokeWidth="0.8" fill="none" />
@@ -214,6 +220,7 @@ function OrnamentDivider() {
 function AnimatedSection({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -228,9 +235,9 @@ function AnimatedSection({ children, className = "" }: { children: React.ReactNo
     <motion.div
       ref={ref}
       className={className}
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: reduceMotion ? 1 : 0, y: reduceMotion ? 0 : 20 }}
       animate={visible ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: reduceMotion ? 0 : 0.65, ease: [0.22, 1, 0.36, 1] }}
     >
       {children}
     </motion.div>
@@ -343,7 +350,8 @@ function DetailsSection() {
             animate={visible ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.1 }}
           >
-            <p className="detail-label font-montserrat text-[10px] tracking-widest uppercase mb-2" style={{ color: "#b8894a" }}>Lokasi</p>
+            <MapPin className="detail-location-icon mx-auto" size={20} aria-hidden="true" />
+            <p className="detail-label font-montserrat text-[10px] tracking-widest uppercase mb-2" style={{ color: "#b8894a" }}>Lokasi Majlis</p>
             <p className="detail-value font-playfair text-lg font-bold mb-1" style={{ color: "#6e2224" }}>
               <TextWithAmpersands text={eventDetails.venueName} />
             </p>
@@ -359,8 +367,14 @@ function DetailsSection() {
             animate={visible ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.25 }}
           >
-            <p className="detail-label font-montserrat text-[10px] tracking-widest uppercase mb-2" style={{ color: "#b8894a" }}>Tarikh</p>
-            <p className="detail-value font-playfair text-base font-semibold" style={{ color: "#6e2224" }}>{eventDetails.dateLabel}</p>
+            <div className="event-date-plaque">
+              <span className="sr-only">{eventDetails.dateLabel}</span>
+              <span className="event-date-day font-playfair" aria-hidden="true">08</span>
+              <div aria-hidden="true">
+                <p className="event-date-weekday font-montserrat">Ahad</p>
+                <p className="event-date-month font-playfair">November 2026</p>
+              </div>
+            </div>
           </motion.div>
 
           <div className="h-px w-32 mx-auto bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
@@ -370,7 +384,7 @@ function DetailsSection() {
             animate={visible ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.4 }}
           >
-            <p className="detail-label font-montserrat text-[10px] tracking-widest uppercase mb-2" style={{ color: "#b8894a" }}>Masa</p>
+            <p className="detail-label font-montserrat text-[10px] tracking-widest uppercase mb-2" style={{ color: "#b8894a" }}>Waktu Majlis</p>
             <p className="detail-value font-playfair text-base font-semibold" style={{ color: "#6e2224" }}>{eventDetails.timeLabel}</p>
           </motion.div>
         </div>
@@ -574,7 +588,6 @@ function SheetContent({
   rsvpForm,
   rsvpStatus,
   rsvpStatusIsError,
-  rsvpAvailable,
   isSubmitting,
   updateRsvpForm,
   submitRsvp,
@@ -589,7 +602,6 @@ function SheetContent({
   rsvpForm: RsvpFormState;
   rsvpStatus: string;
   rsvpStatusIsError: boolean;
-  rsvpAvailable: boolean;
   isSubmitting: boolean;
   updateRsvpForm: (patch: Partial<RsvpFormState>) => void;
   submitRsvp: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -667,132 +679,124 @@ function SheetContent({
 
   if (active === "rsvp") {
     return (
-      <div className="space-y-4 overflow-y-auto max-h-[60vh] pr-1">
-        <form onSubmit={submitRsvp} className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
-            <label htmlFor="rsvp-name" className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-gray-500">Nama</label>
+      <div className="rsvp-sheet-content">
+        <p className="sheet-intro">Sahkan kehadiran anda agar kami dapat menyambut anda sekeluarga.</p>
+        <form onSubmit={submitRsvp} className="rsvp-form" aria-busy={isSubmitting}>
+          <fieldset disabled={isSubmitting} className="rsvp-fields">
+          <div className="rsvp-field">
+            <label htmlFor="rsvp-name">Nama penuh <span aria-hidden="true">*</span></label>
             <input
               required
               id="rsvp-name" name="name" autoComplete="name"
               value={rsvpForm.name}
               maxLength={80}
-              placeholder="Nama anda..."
-              className="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+              placeholder="Nama anda"
               onChange={(event) => updateRsvpForm({ name: event.target.value })}
             />
           </div>
-          <div>
-            <label htmlFor="rsvp-attendance" className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-gray-500">Kehadiran</label>
-            <select
-              id="rsvp-attendance" name="attendance"
-              value={rsvpForm.attendance}
-              className="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none bg-white"
-              onChange={(event) => updateRsvpForm({ attendance: event.target.value as AttendanceStatus })}
-            >
+          <fieldset className="attendance-field">
+            <legend>Kehadiran</legend>
+            <div className="attendance-options">
               {attendanceOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
+                <label key={option} className={`attendance-option ${rsvpForm.attendance === option ? "is-selected" : ""}`}>
+                  <input type="radio" name="attendance" value={option} checked={rsvpForm.attendance === option}
+                    onChange={() => updateRsvpForm({ attendance: option })} />
+                  <span>{option}</span>
+                </label>
               ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="rsvp-pax" className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-gray-500">Jumlah pax</label>
+            </div>
+          </fieldset>
+          <div className="rsvp-field">
+            <label htmlFor="rsvp-pax">Jumlah tetamu <span className="field-optional">termasuk anda</span></label>
             <input
               id="rsvp-pax" name="pax"
               type="number"
+              inputMode="numeric"
               min={1}
               max={10}
               value={rsvpForm.pax}
-              className="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none bg-white"
               onChange={(event) => updateRsvpForm({ pax: Math.min(10, Math.max(1, Number(event.target.value) || 1)) })}
             />
           </div>
-          <div className="col-span-2">
-            <label htmlFor="rsvp-phone" className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-gray-500">No telefon</label>
+          <div className="rsvp-field">
+            <label htmlFor="rsvp-phone">Nombor telefon <span className="field-optional">pilihan</span></label>
             <input
               id="rsvp-phone" name="phone" autoComplete="tel"
               type="tel"
+              inputMode="tel"
               value={rsvpForm.phone}
               maxLength={30}
               placeholder="Contoh: 0191234567"
-              className="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none bg-white"
               onChange={(event) => updateRsvpForm({ phone: event.target.value })}
             />
           </div>
-          <div className="col-span-2">
-            <label htmlFor="rsvp-wish" className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-gray-500">Ucapan</label>
+          <div className="rsvp-field">
+            <label htmlFor="rsvp-wish">Ucapan buat pengantin <span className="field-optional">pilihan</span></label>
             <textarea
               id="rsvp-wish" name="wish"
               value={rsvpForm.wish}
               maxLength={240}
               rows={3}
-              placeholder="Tulis ucapan ringkas..."
-              className="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none bg-white"
+              placeholder="Titipkan doa dan ucapan anda..."
+              aria-describedby="rsvp-privacy"
               onChange={(event) => updateRsvpForm({ wish: event.target.value })}
             />
           </div>
+          <p id="rsvp-privacy" className="rsvp-privacy">Jika anda menulis ucapan, nama dan ucapan anda dipaparkan pada kad. Nombor telefon tidak dipaparkan.</p>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="col-span-2 py-2.5 rounded-xl text-xs font-semibold bg-[#751d1d] text-[#fff4d6] disabled:opacity-50 transition active:scale-95"
+            className="sheet-primary-button"
           >
-            {isSubmitting ? "Menyimpan..." : rsvpAvailable ? "Hantar RSVP" : "Teruskan di WhatsApp"}
+            {isSubmitting ? <LoaderCircle size={17} className="animate-spin" aria-hidden="true" /> : <Mail size={17} aria-hidden="true" />}
+            {isSubmitting ? "Menyimpan..." : "Hantar RSVP"}
+            {!isSubmitting && <ArrowRight size={17} aria-hidden="true" />}
           </button>
+          </fieldset>
         </form>
         {rsvpStatus && (
           <p
-            className={`p-2 text-xs rounded-xl border text-center ${
-              rsvpStatusIsError
-                ? "border-red-500/20 bg-red-50 text-red-700"
-                : "border-green-500/20 bg-green-50 text-green-700"
-            }`}
+            className={`rsvp-feedback ${rsvpStatusIsError ? "is-error" : "is-success"}`}
             role={rsvpStatusIsError ? "alert" : "status"}
           >
+            {!rsvpStatusIsError && <CheckCircle2 size={20} aria-hidden="true" />}
             {rsvpStatus}
           </p>
         )}
-
-        {!rsvpAvailable && <p className="text-xs leading-relaxed text-center text-gray-600">Sahkan kehadiran dengan Fatin melalui WhatsApp. Sila hantar mesej selepas draf dibuka.</p>}
-
-        {/* Wishes List */}
-        <div className="pt-4 border-t border-gray-100">
-          <h4 className="text-[11px] font-bold uppercase tracking-wider mb-2 text-gray-400">Ucapan Terbaru</h4>
-          <div className="space-y-2.5">
-            {wishes.length === 0 && <p className="text-xs text-gray-500">Tiada ucapan buat masa ini.</p>}
-            {wishes.slice(0, 4).map((w, idx) => (
-              <div key={idx} className="p-2.5 rounded-xl border border-gray-100 bg-gray-50/50 text-xs">
-                <p className="italic text-gray-700">&quot;{w.wish || "Semoga majlis berjalan lancar."}&quot;</p>
-                <strong className="block text-right text-gray-600 mt-1.5">— {w.name}</strong>
-              </div>
+        {wishes.some((wish) => wish.wish.trim()) && (
+          <div className="wishes-list">
+            <h3 className="font-playfair">Ucapan yang dititipkan</h3>
+            {wishes.filter((wish) => wish.wish.trim()).slice(0, 4).map((wish, index) => (
+              <blockquote key={`${wish.timestamp}-${index}`}>
+                <p className="font-playfair">&ldquo;{wish.wish}&rdquo;</p>
+                <cite>— {wish.name}</cite>
+              </blockquote>
             ))}
           </div>
-        </div>
+        )}
       </div>
     );
   }
 
   if (active === "gift") {
-    const family = malaysiaPhoneLinks(contacts[0].phone);
     return (
-      <div className="space-y-4 text-center">
-        <div className="flex flex-col items-center p-4 rounded-xl border border-amber-500/10 bg-[#751d1d]/5">
-          <Gift className="w-8 h-8 text-[#751d1d] mb-2" />
-          <strong className="block text-base text-[#6e2224] font-bold">{giftDetails.title}</strong>
-          <span className="text-xs text-gray-500 mt-1">{giftDetails.recipient}</span>
-        </div>
-        <div className="p-3 rounded-xl border bg-white shadow-sm text-xs">
-          <span className="block text-gray-400 font-semibold mb-1">Bank / DuitNow</span>
-          <strong className="text-sm text-[#6e2224] font-bold">{giftDetails.bank}</strong>
-          <p className="text-gray-500 mt-2 leading-relaxed">{giftDetails.note}</p>
-        </div>
+      <div className="gift-sheet-content text-center">
+        <span className="gift-mark" aria-hidden="true"><Gift size={23} /></span>
+        <h3 className="gift-heading font-playfair">{giftDetails.title}</h3>
+        <p className="sheet-intro">{giftDetails.note}</p>
+        <figure className="gift-qr-block">
+          <div className="gift-qr-mount"><img src="/gift-qr.jpeg" width={319} height={324} alt="Kod QR hadiah pengantin" className="gift-qr-image" /></div>
+          <figcaption>Imbas kod QR untuk hadiah</figcaption>
+        </figure>
         <a
-          href={family.whatsapp}
-          target="_blank"
-          rel="noreferrer"
-          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-[#751d1d] text-[#fff4d6] hover:brightness-110 active:scale-95 transition"
+          href="/gift-qr.jpeg"
+          download="QR-Hadiah-Fatin-Arfan.jpeg"
+          className="sheet-primary-button"
         >
-          <MessageSquare className="w-3.5 h-3.5" />
-          Hubungi Keluarga (WhatsApp)
+          <Download size={17} aria-hidden="true" />
+          Simpan Kod QR
         </a>
+        <p className="gift-download-note">Simpan kod QR untuk diimbas daripada galeri anda.</p>
       </div>
     );
   }
@@ -803,15 +807,16 @@ function SheetContent({
         {contacts.map((c) => {
           const links = malaysiaPhoneLinks(c.phone);
           return (
-            <div key={c.name} className="flex justify-between items-center p-3 rounded-xl border border-gray-100 bg-white shadow-sm">
-              <div>
+            <div key={c.name} className="contact-row">
+              <div className="contact-details">
                 <strong className="block text-sm text-[#6e2224] font-bold">{c.name}</strong>
-                <span className="text-xs text-gray-400 font-semibold">{c.relation} — {c.phone}</span>
+                <span className="contact-relation">{c.relation}</span>
+                <span className="contact-phone">{c.phone}</span>
               </div>
               <div className="flex gap-2">
                 <a
                   href={links.tel}
-                  className="w-8 h-8 rounded-full border flex items-center justify-center bg-white hover:bg-gray-50 transition active:scale-90"
+                  className="contact-action"
                   aria-label={`Panggil ${c.name}`}
                 >
                   <Phone className="w-3.5 h-3.5 text-[#751d1d]" />
@@ -820,7 +825,7 @@ function SheetContent({
                   href={links.whatsapp}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-8 h-8 rounded-full border flex items-center justify-center bg-white hover:bg-gray-50 transition active:scale-90"
+                  className="contact-action"
                   aria-label={`WhatsApp ${c.name}`}
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-[#751d1d]" />
@@ -914,24 +919,27 @@ export default function App() {
   const [rsvpStatus, setRsvpStatus] = useState("");
   const [rsvpStatusIsError, setRsvpStatusIsError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [rsvpAvailable, setRsvpAvailable] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   const playerRef = useRef<AudioControllerHandle>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const sheetTriggerRef = useRef<HTMLElement | null>(null);
+  const wishesRevisionRef = useRef(0);
   const validMusic = true;
 
   useEffect(() => {
     if (!active) return;
     const previousOverflow = document.body.style.overflow;
-    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousFocus = sheetTriggerRef.current ?? document.activeElement as HTMLElement | null;
     document.body.style.overflow = "hidden";
-    const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]';
+    const focusableSelector = 'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]';
     sheetRef.current?.querySelector<HTMLElement>(focusableSelector)?.focus();
     const handleDialogKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") { setActive(null); return; }
       if (event.key !== "Tab") return;
       const focusable = Array.from(sheetRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? []).filter((element) => element.getClientRects().length > 0);
       const first = focusable[0], last = focusable[focusable.length - 1];
+      if (!sheetRef.current?.contains(document.activeElement)) { event.preventDefault(); first?.focus(); return; }
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     };
@@ -945,6 +953,7 @@ export default function App() {
   const closeSheet = () => setActive(null);
 
   const openSheet = (panel: DockPanel) => {
+    sheetTriggerRef.current = document.activeElement as HTMLElement | null;
     setActive((curr) => (curr === panel ? null : panel));
   };
 
@@ -972,26 +981,16 @@ export default function App() {
 
   const submitRsvp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) return;
     setRsvpStatus("");
     setRsvpStatusIsError(false);
-    if (!rsvpAvailable) {
-      const message = [
-        "Assalamualaikum Fatin, saya ingin mengesahkan kehadiran ke majlis Fatin & Arfan pada 8 November 2026.",
-        "Nama: " + rsvpForm.name, "Kehadiran: " + rsvpForm.attendance,
-        "Jumlah tetamu: " + rsvpForm.pax,
-        rsvpForm.phone ? "Telefon: " + rsvpForm.phone : "",
-        rsvpForm.wish ? "Ucapan: " + rsvpForm.wish : "",
-      ].filter(Boolean).join("\n");
-      window.open(malaysiaPhoneLinks(contacts[2].phone).whatsapp + "?text=" + encodeURIComponent(message), "_blank", "noopener,noreferrer");
-      setRsvpStatus("Draf RSVP telah dibuka di WhatsApp. Sila hantar mesej untuk mengesahkan kehadiran.");
-      return;
-    }
     setIsSubmitting(true);
     try {
       const result = await postRsvpSubmission(rsvpForm);
+      wishesRevisionRef.current += 1;
       setWishes(result.submissions.slice(0, 20));
       setRsvpForm(initialForm);
-      setRsvpStatus("Terima kasih. RSVP anda telah disimpan dengan selamat.");
+      setRsvpStatus("Terima kasih. RSVP anda telah disimpan.");
     } catch (error) {
       setRsvpStatusIsError(true);
       setRsvpStatus(error instanceof Error ? error.message : "RSVP tidak dapat dihantar.");
@@ -1001,12 +1000,16 @@ export default function App() {
   };
 
   useEffect(() => {
+    const revision = wishesRevisionRef.current;
+    let cancelled = false;
     fetchRsvpSubmissions()
-      .then((result) => { setWishes(result.submissions.slice(0, 20)); setRsvpAvailable(result.configured !== false); })
-      .catch(() => { setWishes(seedWishes); setRsvpAvailable(false); });
+      .then((result) => { if (!cancelled && revision === wishesRevisionRef.current) setWishes(result.submissions.slice(0, 20)); })
+      .catch(() => { if (!cancelled && revision === wishesRevisionRef.current) setWishes(seedWishes); });
+    return () => { cancelled = true; };
   }, []);
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="invitation-root relative min-h-screen font-montserrat">
       <style>{fontStyle}</style>
 
@@ -1167,15 +1170,15 @@ export default function App() {
                   />
                   {/* Modal sheet */}
                   <motion.div
-                    initial={{ y: "100%" }}
-                    animate={{ y: 0 }}
-                    exit={{ y: "100%" }}
-                    transition={{ type: "spring", damping: 30, stiffness: 350 }}
+                    initial={{ y: reduceMotion ? 0 : "100%", opacity: reduceMotion ? 0 : 1 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: reduceMotion ? 0 : "100%", opacity: reduceMotion ? 0 : 1 }}
+                    transition={reduceMotion ? { duration: 0.15 } : { type: "spring", damping: 30, stiffness: 350 }}
                     ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby="sheet-title"
                     className="sheet-panel fixed inset-x-0 bottom-16 z-40 mx-auto max-w-lg rounded-t-3xl p-6 shadow-2xl bg-white/95 backdrop-blur-xl border-t border-amber-500/15"
                   >
-                    <div className="w-12 h-1 bg-amber-500/20 rounded-full mx-auto mb-4" />
-                    <div className="flex justify-between items-center mb-5">
+                    <div className="sheet-handle" aria-hidden="true" />
+                    <div className="sheet-header flex justify-between items-center mb-5">
                       <div>
                         <h2 id="sheet-title" className="text-xl font-bold font-playfair text-[#6e2224]">
                           {active === "time" && <>Tarikh <AestheticAmpersand /> Masa</>}
@@ -1187,9 +1190,10 @@ export default function App() {
                         </h2>
                       </div>
                       <button
+                        type="button"
                         onClick={closeSheet}
                         aria-label="Tutup panel"
-                        className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center bg-gray-50 hover:bg-gray-100 transition"
+                        className="sheet-close-button flex items-center justify-center"
                       >
                         <X className="w-4 h-4 text-gray-500" />
                       </button>
@@ -1205,7 +1209,6 @@ export default function App() {
                       rsvpForm={rsvpForm}
                       rsvpStatus={rsvpStatus}
                       rsvpStatusIsError={rsvpStatusIsError}
-                      rsvpAvailable={rsvpAvailable}
                       isSubmitting={isSubmitting}
                       updateRsvpForm={updateRsvpForm}
                       submitRsvp={submitRsvp}
@@ -1220,6 +1223,7 @@ export default function App() {
             {validMusic && (
               <button
                 type="button"
+                hidden={Boolean(active)}
                 onClick={() => openSheet("music")}
                 aria-label={musicState === "playing" ? "Open music player, currently playing" : "Open music player"}
                 title="Music player"
@@ -1227,7 +1231,8 @@ export default function App() {
                   active === "music" ? "ring-2 ring-[#fff4d6]" : ""
                 }`}
                 style={{
-                  right: "max(16px, calc((100vw - 512px) / 2 + 16px))"
+                  right: "max(16px, calc((100vw - 512px) / 2 + 16px))",
+                  display: active ? "none" : undefined,
                 }}
               >
                 {musicState === "playing" ? (
@@ -1240,6 +1245,7 @@ export default function App() {
 
             {/* Fixed bottom navigation dock (Apple-like) */}
             <motion.nav
+              aria-label="Navigasi jemputan"
               className="invitation-dock fixed bottom-3 inset-x-4 z-40 mx-auto max-w-md grid grid-cols-5 gap-1.5 p-2 rounded-full shadow-2xl backdrop-blur-xl border"
               style={{
                 background: "rgba(132, 41, 68, 0.95)",
@@ -1258,8 +1264,10 @@ export default function App() {
                 { panel: "contact", icon: Phone, label: "Hubungi" }
               ].map(({ panel, icon: Icon, label }) => (
                 <motion.button
+                  type="button"
                   key={panel}
                   onClick={() => openSheet(panel as DockPanel)}
+                  aria-pressed={active === panel}
                   className={`flex flex-col items-center justify-center py-1.5 rounded-full transition-all active:scale-90 ${
                     active === panel ? "bg-amber-500/25 border border-amber-500/25 text-[#fff4d6] font-semibold" : "text-amber-100/70 hover:text-white"
                   }`}
@@ -1277,5 +1285,6 @@ export default function App() {
         )}
       </AnimatePresence>
     </div>
+    </MotionConfig>
   );
 }
