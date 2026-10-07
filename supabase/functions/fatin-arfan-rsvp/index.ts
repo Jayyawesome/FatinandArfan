@@ -1,6 +1,21 @@
 const invitationAccessKey = "fa_91b9d21628fe4eada68cf9fdc7adc102";
 const attendanceOptions = new Set(["Hadir", "Tidak Hadir", "Mungkin"]);
 const headers = { "Content-Type": "application/json", "Cache-Control": "no-store" };
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const timestampPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?(?:Z|([+-])(\d{2}):(\d{2}))$/;
+
+function validTimestamp(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const match = timestampPattern.exec(value);
+  if (!match || !Number.isFinite(Date.parse(value))) return false;
+  const [, year, month, day, hour, minute, second, , offsetHour, offsetMinute] = match;
+  if (Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59) return false;
+  if (offsetHour !== undefined && (Number(offsetHour) > 15 || Number(offsetMinute) > 59)) return false;
+  const calendarDate = new Date(`${year}-${month}-${day}T00:00:00Z`);
+  return calendarDate.getUTCFullYear() === Number(year)
+    && calendarDate.getUTCMonth() + 1 === Number(month)
+    && calendarDate.getUTCDate() === Number(day);
+}
 
 function reply(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers });
@@ -26,8 +41,19 @@ Deno.serve(async (request: Request) => {
     const payload = await request.json();
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("Input tidak sah.");
     if (payload.operation === "list") {
-      functionName = "list_fatin_arfan_wishes";
-      parameters = { p_limit: 20 };
+      const input = payload.parameters ?? {};
+      if (typeof input !== "object" || Array.isArray(input)) throw new Error("Input tidak sah.");
+      // Accept the previous invitation route during a rolling website deployment.
+      if (input.p_limit !== undefined && input.p_limit !== 20 && input.p_limit !== 101) throw new Error("Input tidak sah.");
+      const beforeTimestamp = input.p_before_created_at ?? null;
+      const beforeId = input.p_before_id ?? null;
+      if (beforeTimestamp !== null || beforeId !== null) {
+        if (!validTimestamp(beforeTimestamp) || typeof beforeId !== "string" || !uuidPattern.test(beforeId)) {
+          throw new Error("Input tidak sah.");
+        }
+      }
+      functionName = "list_fatin_arfan_wishes_page";
+      parameters = { p_limit: 101, p_before_created_at: beforeTimestamp, p_before_id: beforeId };
     } else if (payload.operation === "save") {
       const input = payload.parameters;
       if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Input tidak sah.");
@@ -61,7 +87,14 @@ Deno.serve(async (request: Request) => {
     }
     const rows = await response.json();
     if (!Array.isArray(rows)) return reply({ error: "Respons RSVP tidak sah." }, 503);
-    return reply(rows);
+    const publicRows = rows.map((row) => {
+      if (!row || typeof row.id !== "string" || !uuidPattern.test(row.id)
+        || !validTimestamp(row.created_at) || typeof row.name !== "string" || typeof row.wish !== "string") {
+        throw new Error("Unexpected public RSVP row.");
+      }
+      return { id: row.id, created_at: row.created_at, name: row.name, wish: row.wish };
+    });
+    return reply(publicRows);
   } catch {
     console.error("Invitation RSVP service request failed");
     return reply({ error: "Perkhidmatan RSVP tidak dapat dihubungi. Sila cuba lagi." }, 503);

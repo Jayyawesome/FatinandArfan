@@ -394,6 +394,60 @@ html { scroll-behavior: smooth; }
 .music-bar:nth-child(4) { animation-delay: -600ms; }
 @keyframes musicBar { from { height: 5px; } to { height: 18px; } }
 
+/* Full photographs on a cream mount, with deliberate, manual navigation. */
+.photo-gallery { margin: 0 25px; padding: 38px 0 32px; border-bottom: 1px solid #751d1d18; }
+.gallery-heading { margin-bottom: 24px; }
+.gallery-heading .section-kicker { margin-bottom: 12px; color: var(--rose-ink); }
+.gallery-heading h2 { color: var(--maroon-ink); font-size: clamp(2.5rem, 12vw, 3.3rem); font-weight: 400; line-height: 1.2; }
+.gallery-photo-mount { padding: 8px 8px 0; border: 1px solid #751d1d22; border-radius: 12px; background: #fffaf1; box-shadow: 0 7px 24px #570f0608; }
+.gallery-viewport { overflow: hidden; border-radius: 6px; background: #ebe2d2; touch-action: pan-y pinch-zoom; user-select: none; }
+.gallery-viewport:focus-visible { outline: 2px solid var(--maroon); outline-offset: 4px; }
+.gallery-track { display: flex; }
+.gallery-slide { flex: 0 0 100%; min-width: 0; }
+.gallery-photo { position: relative; width: 100%; aspect-ratio: 3 / 4; background: #ebe2d2; }
+.gallery-image { object-fit: contain; }
+.gallery-caption { display: flex; min-height: 54px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; }
+.gallery-caption p { color: var(--maroon-ink); font-size: 16px; font-style: italic; line-height: 1.6; }
+.gallery-counter { flex: 0 0 auto; color: #92766a; font-size: 10px; letter-spacing: 0.1em; }
+.gallery-controls { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 15px auto 0; }
+.gallery-arrow { display: inline-grid; width: 44px; height: 44px; place-items: center; border: 1px solid #751d1d2e; border-radius: 50%; background: #fffaf17a; color: var(--maroon); transition: background 160ms ease, transform 160ms ease; }
+.gallery-arrow:hover:not(:disabled) { background: #fffaf1; }
+.gallery-arrow:active:not(:disabled) { transform: scale(0.94); }
+.gallery-arrow:disabled { opacity: 0.3; cursor: default; }
+.gallery-dots { display: flex; align-items: center; justify-content: center; }
+.gallery-dot { display: grid; width: 30px; height: 44px; place-items: center; border: 0; border-radius: 99px; background: transparent; }
+.gallery-dot span { display: block; width: 6px; height: 6px; border-radius: 99px; background: #751d1d36; transition: width 180ms ease, background 180ms ease; }
+.gallery-dot.is-selected span { width: 20px; background: var(--maroon); }
+.gallery-swipe-hint { margin-top: 10px; color: #92786c; font-size: 9px; line-height: 1.8; text-align: center; }
+.wishes-view-all { display: inline-flex; min-height: 44px; align-items: center; gap: 9px; margin-top: 2px; color: var(--maroon); font-size: 11px; font-weight: 500; }
+
+/* The guest book is the final section of the invitation. */
+.guest-wishes-section { position: relative; padding: 53px 25px 44px; border-top: 1px solid #751d1d18; background: var(--cream); scroll-margin-top: 20px; }
+.guest-wishes-section:focus { outline: none; }
+.guest-wishes-header { max-width: 24rem; margin: 0 auto 28px; }
+.guest-wishes-heart { margin: 0 auto 16px; color: var(--maroon); stroke-width: 1.3; }
+.guest-wishes-header .section-kicker { margin-bottom: 12px; color: var(--rose-ink); font-size: 9px; }
+.guest-wishes-header h2 { color: var(--maroon-ink); font-size: clamp(2rem, 9vw, 2.6rem); font-weight: 400; line-height: 1.3; }
+.guest-wishes-intro { max-width: 19rem; margin: 13px auto 20px; color: #80645b; font-size: 14px; font-style: italic; line-height: 1.8; }
+.guest-wishes-compose { display: inline-flex; min-height: 45px; align-items: center; justify-content: center; gap: 9px; padding: 11px 18px; border: 1px solid #751d1d45; border-radius: 999px; background: #fffaf17a; color: var(--maroon); font-size: 11px; font-weight: 500; transition: background 160ms ease; }
+.guest-wishes-compose:hover { background: #fffaf1; }
+.guest-wishes-count { margin: 0 0 17px; color: #92766a; font-size: 9px; font-weight: 500; letter-spacing: 0.15em; text-align: center; text-transform: uppercase; }
+.guest-wishes-feed { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.guest-wish-card { position: relative; margin: 0; padding: 23px 20px 17px; border: 1px solid #751d1d18; border-radius: 12px; background: #fffaf1c4; }
+.guest-wish-quote { position: absolute; top: 2px; left: 18px; color: #b8894a66; font-size: 55px; font-weight: 400; line-height: 1; pointer-events: none; }
+.guest-wish-copy { position: relative; padding-top: 13px; color: #63443b; font-size: 15px; line-height: 1.85; overflow-wrap: anywhere; white-space: pre-wrap; }
+.guest-wish-card footer { display: flex; align-items: baseline; justify-content: space-between; gap: 13px; margin-top: 17px; padding-top: 13px; border-top: 1px solid #751d1d12; }
+.guest-wish-card cite { color: var(--maroon-ink); font-size: 10px; font-style: normal; font-weight: 600; line-height: 1.7; overflow-wrap: anywhere; }
+.guest-wish-card time { flex: 0 0 auto; color: #a28a7c; font-size: 9px; line-height: 1.7; }
+.guest-wishes-status { display: flex; min-height: 75px; align-items: center; justify-content: center; gap: 10px; color: #80645b; font-size: 12px; line-height: 1.7; }
+.guest-wishes-empty { max-width: 20rem; margin: 0 auto; padding: 25px 16px; border-block: 1px solid #751d1d15; color: #80645b; font-size: 15px; line-height: 1.85; text-align: center; }
+.guest-wishes-error { margin: 0 0 24px; padding: 15px; border: 1px solid #b52d3826; border-radius: 11px; background: #fff5ec; color: #98363c; font-size: 11px; line-height: 1.7; text-align: center; }
+.guest-wishes-error button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; margin-top: 7px; padding: 8px 15px; border: 1px solid #98363c35; border-radius: 999px; background: #fffaf1; color: #98363c; font-size: 10px; font-weight: 500; }
+.guest-wishes-error button:disabled { opacity: 0.55; cursor: wait; }
+.guest-wishes-refresh { margin: 18px 0 0; color: #92786c; font-size: 10px; line-height: 1.8; text-align: center; }
+.guest-wishes-end { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 35px auto 0; color: #b8894a; }
+.guest-wishes-end span { width: 42px; height: 1px; background: #b8894a4d; }
+
 @media (min-width: 521px) {
   .invitation-letter { padding: 185px 39px 275px; }
   .invitation-letter::before { height: 185px; }

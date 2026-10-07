@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useRef } from "react";
+import { Fragment, useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence, MotionConfig, useReducedMotion } from "motion/react";
 import {
@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { PersistentAudioPlayer } from "../components/PersistentAudioPlayer";
 import type { AudioControllerHandle, AudioPlaybackState, AudioProgress } from "../components/PersistentAudioPlayer";
+import { PhotoCarousel } from "../components/PhotoCarousel";
+import { GuestWishes } from "../components/GuestWishes";
 import { attendanceOptions, seedWishes } from "../lib/rsvp";
 import type { AttendanceStatus, RsvpSubmission } from "../lib/rsvp";
 
@@ -65,7 +67,37 @@ const fontStyle = `
 
 type DockPanel = "time" | "location" | "rsvp" | "gift" | "contact" | "music";
 type RsvpFormState = { name: string; attendance: AttendanceStatus; pax: number; phone: string; wish: string };
-type RsvpApiResponse = { submissions: RsvpSubmission[]; storage: string | null; configured?: boolean };
+type RsvpApiResponse = {
+  submissions: RsvpSubmission[];
+  nextCursor: string | null;
+  storage: string | null;
+  configured?: boolean;
+  submission?: RsvpSubmission;
+};
+
+function isPublicWish(value: unknown): value is RsvpSubmission {
+  if (!value || typeof value !== "object") return false;
+  const wish = value as Record<string, unknown>;
+  return typeof wish.id === "string" && typeof wish.timestamp === "string" && typeof wish.name === "string" && typeof wish.wish === "string";
+}
+
+function mergeWishes(...groups: RsvpSubmission[][]) {
+  const unique = new Map<string, RsvpSubmission>();
+  for (const wishes of groups) {
+    for (const wish of wishes) {
+      if (wish.wish.trim()) unique.set(wish.id, wish);
+    }
+  }
+  const subMillisecondMicroseconds = (timestamp: string) => {
+    const fraction = timestamp.match(/\.(\d+)/)?.[1] ?? "";
+    return Number(fraction.padEnd(6, "0").slice(3, 6));
+  };
+  return Array.from(unique.values()).sort((a, b) => (
+    Date.parse(b.timestamp) - Date.parse(a.timestamp)
+    || subMillisecondMicroseconds(b.timestamp) - subMillisecondMicroseconds(a.timestamp)
+    || b.id.localeCompare(a.id)
+  ));
+}
 
 function AestheticAmpersand() {
   return <span className="aesthetic-ampersand">&amp;</span>;
@@ -105,15 +137,34 @@ async function parseRsvpResponse(response: Response): Promise<RsvpApiResponse> {
     const message = typeof body.error === "string" ? body.error : "RSVP tidak dapat dihantar.";
     throw new Error(message);
   }
-  if (!Array.isArray(body.submissions)) {
+  if (!Array.isArray(body.submissions) || !body.submissions.every(isPublicWish)) {
     throw new Error("Senarai RSVP tidak dapat dibaca.");
   }
-  return body as RsvpApiResponse;
+  const nextCursor = body.nextCursor ?? null;
+  if (nextCursor !== null && (typeof nextCursor !== "string" || !nextCursor)) {
+    throw new Error("Senarai ucapan tidak dapat dibaca.");
+  }
+  return { ...body, nextCursor } as RsvpApiResponse;
 }
 
-async function fetchRsvpSubmissions() {
-  const response = await fetch("/api/rsvp", { headers: { Accept: "application/json" } });
+async function fetchRsvpSubmissions(cursor: string | null, signal: AbortSignal) {
+  const url = cursor ? `/api/rsvp?cursor=${encodeURIComponent(cursor)}` : "/api/rsvp";
+  const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store", signal });
   return parseRsvpResponse(response);
+}
+
+async function fetchAllWishes(signal: AbortSignal) {
+  let cursor: string | null = null;
+  let wishes: RsvpSubmission[] = [];
+  const seenCursors = new Set<string>();
+  do {
+    const page = await fetchRsvpSubmissions(cursor, signal);
+    wishes = mergeWishes(wishes, page.submissions);
+    cursor = page.nextCursor;
+    if (cursor && seenCursors.has(cursor)) throw new Error("Senarai ucapan tidak dapat dimuatkan sepenuhnya.");
+    if (cursor) seenCursors.add(cursor);
+  } while (cursor);
+  return wishes;
 }
 
 async function postRsvpSubmission(form: RsvpFormState) {
@@ -594,6 +645,7 @@ function SheetContent({
   updateRsvpForm,
   submitRsvp,
   wishes,
+  onViewAllWishes,
 }: {
   active: DockPanel;
   musicState: AudioPlaybackState;
@@ -608,6 +660,7 @@ function SheetContent({
   updateRsvpForm: (patch: Partial<RsvpFormState>) => void;
   submitRsvp: (event: React.FormEvent<HTMLFormElement>) => void;
   wishes: RsvpSubmission[];
+  onViewAllWishes: () => void;
 }) {
   if (active === "time") {
     const calendar = calendarDetails();
@@ -767,13 +820,14 @@ function SheetContent({
         )}
         {wishes.some((wish) => wish.wish.trim()) && (
           <div className="wishes-list">
-            <h3 className="font-playfair">Ucapan yang dititipkan</h3>
-            {wishes.filter((wish) => wish.wish.trim()).slice(0, 4).map((wish, index) => (
-              <blockquote key={`${wish.timestamp}-${index}`}>
+            <h3 className="font-playfair">Ucapan terbaru</h3>
+            {wishes.filter((wish) => wish.wish.trim()).slice(0, 4).map((wish) => (
+              <blockquote key={wish.id}>
                 <p className="font-playfair">&ldquo;{wish.wish}&rdquo;</p>
                 <cite>— {wish.name}</cite>
               </blockquote>
             ))}
+            <button type="button" onClick={onViewAllWishes} className="wishes-view-all font-montserrat">Lihat semua ucapan <ArrowRight size={14} aria-hidden="true" /></button>
           </div>
         )}
       </div>
@@ -917,6 +971,8 @@ export default function App() {
   const [musicState, setMusicState] = useState<AudioPlaybackState>("loading");
   const [musicProgress, setMusicProgress] = useState<AudioProgress>({ currentTime: 0, duration: 0, buffered: 0 });
   const [wishes, setWishes] = useState<RsvpSubmission[]>(seedWishes);
+  const [wishesLoading, setWishesLoading] = useState(true);
+  const [wishesError, setWishesError] = useState("");
   const [rsvpForm, setRsvpForm] = useState<RsvpFormState>(initialForm);
   const [rsvpStatus, setRsvpStatus] = useState("");
   const [rsvpStatusIsError, setRsvpStatusIsError] = useState(false);
@@ -927,7 +983,32 @@ export default function App() {
   const sheetRef = useRef<HTMLDivElement>(null);
   const sheetTriggerRef = useRef<HTMLElement | null>(null);
   const wishesRevisionRef = useRef(0);
+  const wishesRequestRef = useRef<AbortController | null>(null);
   const validMusic = true;
+
+  const refreshWishes = useCallback(async () => {
+    if (wishesRequestRef.current) return;
+    const controller = new AbortController();
+    const revision = wishesRevisionRef.current;
+    wishesRequestRef.current = controller;
+    setWishesLoading(true);
+    setWishesError("");
+    try {
+      const allWishes = await fetchAllWishes(controller.signal);
+      if (wishesRequestRef.current === controller && !controller.signal.aborted && revision === wishesRevisionRef.current) {
+        setWishes(allWishes);
+      }
+    } catch {
+      if (wishesRequestRef.current === controller && !controller.signal.aborted && revision === wishesRevisionRef.current) {
+        setWishesError("Ucapan terkini belum dapat dimuatkan. Sila cuba lagi.");
+      }
+    } finally {
+      if (wishesRequestRef.current === controller) {
+        wishesRequestRef.current = null;
+        setWishesLoading(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (!active) return;
@@ -957,6 +1038,15 @@ export default function App() {
   const openSheet = (panel: DockPanel) => {
     sheetTriggerRef.current = document.activeElement as HTMLElement | null;
     setActive((curr) => (curr === panel ? null : panel));
+  };
+
+  const viewAllWishes = () => {
+    closeSheet();
+    window.setTimeout(() => {
+      const section = document.getElementById("ucapan-tetamu");
+      section?.focus({ preventScroll: true });
+      section?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    }, reduceMotion ? 20 : 350);
   };
 
   const openInvitation = () => {
@@ -990,9 +1080,13 @@ export default function App() {
     try {
       const result = await postRsvpSubmission(rsvpForm);
       wishesRevisionRef.current += 1;
-      setWishes(result.submissions.slice(0, 20));
+      const receipt = isPublicWish(result.submission) ? [result.submission] : [];
+      setWishes((current) => mergeWishes(current, result.submissions, receipt));
       setRsvpForm(initialForm);
       setRsvpStatus("Terima kasih. RSVP anda telah disimpan.");
+      wishesRequestRef.current?.abort();
+      wishesRequestRef.current = null;
+      void refreshWishes();
     } catch (error) {
       setRsvpStatusIsError(true);
       setRsvpStatus(error instanceof Error ? error.message : "RSVP tidak dapat dihantar.");
@@ -1002,13 +1096,19 @@ export default function App() {
   };
 
   useEffect(() => {
-    const revision = wishesRevisionRef.current;
-    let cancelled = false;
-    fetchRsvpSubmissions()
-      .then((result) => { if (!cancelled && revision === wishesRevisionRef.current) setWishes(result.submissions.slice(0, 20)); })
-      .catch(() => { if (!cancelled && revision === wishesRevisionRef.current) setWishes(seedWishes); });
-    return () => { cancelled = true; };
-  }, []);
+    void refreshWishes();
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") void refreshWishes(); };
+    const interval = window.setInterval(refreshWhenVisible, 60_000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      wishesRequestRef.current?.abort();
+      wishesRequestRef.current = null;
+    };
+  }, [refreshWishes]);
 
   return (
     <MotionConfig reducedMotion="user">
@@ -1071,6 +1171,7 @@ export default function App() {
                 <AturCaraSection />
                 <div className="mx-6 h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
 
+                <AnimatedSection><PhotoCarousel /></AnimatedSection>
                 <DoaSection />
               </div>
 
@@ -1156,6 +1257,8 @@ export default function App() {
                   <p className="font-montserrat text-[10px] tracking-[0.2em] uppercase font-semibold text-gray-500 mt-2">8 November 2026</p>
                 </motion.div>
               </div>
+              <GuestWishes wishes={wishes} isLoading={wishesLoading} error={wishesError}
+                onRetry={() => { void refreshWishes(); }} onRsvp={() => openSheet("rsvp")} />
             </div>
 
             {/* Bottom sheets / modals */}
@@ -1215,6 +1318,7 @@ export default function App() {
                       updateRsvpForm={updateRsvpForm}
                       submitRsvp={submitRsvp}
                       wishes={wishes}
+                      onViewAllWishes={viewAllWishes}
                     />
                   </motion.div>
                 </>
