@@ -2,6 +2,8 @@
 
 A mobile-first Next.js wedding invitation using the supplied `Main Page.png` and `Background.png` artwork.
 
+The **Majlis Pertunangan** carousel contains the two supplied couple photos, with the landscape photo first and the portrait photo second. Guests can swipe, use the arrows and dots, or navigate with the keyboard. The final **RSVP & Hadiah** section provides the saved RSVP form and gift QR actions.
+
 [Open the invitation](https://fatinandarfan.vercel.app/).
 
 The wedding details are transcribed from the supplied invitation:
@@ -39,7 +41,7 @@ The application includes a Node.js `/api/rsvp` route connected to the invitation
 
 ## Saved RSVP responses
 
-Guests complete the RSVP form and select **Hantar RSVP**. A successful submission is saved to `public.fatin_arfan_rsvps`, and the invitation displays a confirmation without opening WhatsApp. Responses are stored centrally and survive browser refreshes or visits from another device. All saved nonempty guest wishes appear in the last section of the main invitation, newest first. The card loads the feed in pages of 100 until it reaches the end; there is no total wish-count cap.
+Guests complete the RSVP form and select **Hantar RSVP**. A successful submission is saved to `public.fatin_arfan_rsvps`, and the invitation displays a confirmation without opening WhatsApp. Responses are stored centrally and survive browser refreshes or visits from another device. All saved nonempty guest wishes appear in **Doa & Ucapan**, immediately before the final **RSVP & Hadiah** section, newest first. The card loads the feed in pages of 100 until it reaches the end; there is no total wish-count cap.
 
 The hosts can view names, attendance, party sizes, phone numbers, and wishes in the [Supabase Table Editor](https://supabase.com/dashboard/project/cirayzvtackcsxyzcwfx/editor?schema=public) by selecting **fatin_arfan_rsvps**. Sign in to the account that owns this project to view or export the full responses. The invitation uses a dedicated table in the existing free Supabase project `cirayzvtackcsxyzcwfx`.
 

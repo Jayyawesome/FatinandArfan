@@ -421,7 +421,7 @@ html { scroll-behavior: smooth; }
 .gallery-swipe-hint { margin-top: 10px; color: #92786c; font-size: 9px; line-height: 1.8; text-align: center; }
 .wishes-view-all { display: inline-flex; min-height: 44px; align-items: center; gap: 9px; margin-top: 2px; color: var(--maroon); font-size: 11px; font-weight: 500; }
 
-/* The guest book is the final section of the invitation. */
+/* Guest wishes appear before the final RSVP and gift section. */
 .guest-wishes-section { position: relative; padding: 53px 25px 44px; border-top: 1px solid #751d1d18; background: var(--cream); scroll-margin-top: 20px; }
 .guest-wishes-section:focus { outline: none; }
 .guest-wishes-header { max-width: 24rem; margin: 0 auto 28px; }

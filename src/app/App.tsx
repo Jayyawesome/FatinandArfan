@@ -1175,8 +1175,12 @@ export default function App() {
                 <DoaSection />
               </div>
 
-              {/* Closing Section */}
-              <div
+              <GuestWishes wishes={wishes} isLoading={wishesLoading} error={wishesError}
+                onRetry={() => { void refreshWishes(); }} onRsvp={() => openSheet("rsvp")} />
+
+              {/* Final RSVP and gift section */}
+              <section
+                id="rsvp-hadiah" aria-labelledby="rsvp-hadiah-title"
                 className="closing-section relative py-16 px-6 text-center flex flex-col justify-center overflow-hidden"
                 style={{
                   backgroundImage: "url('/Background.png')",
@@ -1205,6 +1209,7 @@ export default function App() {
                     Kehadiran Anda Amat Bermakna
                   </motion.p>
                   <motion.h2
+                    id="rsvp-hadiah-title"
                     className="closing-title font-playfair"
                     initial={{ opacity: 0, scale: 0.85, filter: "blur(8px)" }}
                     whileInView={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
@@ -1256,9 +1261,7 @@ export default function App() {
                   <p className="font-greatvibes text-3xl shimmer-text">Fatin <AestheticAmpersand /> Arfan</p>
                   <p className="font-montserrat text-[10px] tracking-[0.2em] uppercase font-semibold text-gray-500 mt-2">8 November 2026</p>
                 </motion.div>
-              </div>
-              <GuestWishes wishes={wishes} isLoading={wishesLoading} error={wishesError}
-                onRetry={() => { void refreshWishes(); }} onRsvp={() => openSheet("rsvp")} />
+              </section>
             </div>
 
             {/* Bottom sheets / modals */}

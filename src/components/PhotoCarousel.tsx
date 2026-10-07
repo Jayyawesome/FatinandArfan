@@ -9,10 +9,8 @@ import { useReducedMotion } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const photos = [
-  { src: "/gallery/wedding-01.jpeg", alt: "Foto pasangan pengantin", caption: "Fatin & Arfan" },
-  { src: "/gallery/wedding-02.jpeg", alt: "Foto kenangan pasangan pengantin bersama keluarga", caption: "Bersama keluarga" },
-  { src: "/gallery/wedding-03.jpeg", alt: "Foto Fatin dan Arfan bersama", caption: "Fatin & Arfan" },
-  { src: "/gallery/wedding-04.jpeg", alt: "Foto pasangan pengantin dan keluarga", caption: "Bersama keluarga" },
+  { src: "/gallery/wedding-03.jpeg", alt: "Foto landskap Fatin dan Arfan semasa majlis pertunangan", caption: "Fatin & Arfan" },
+  { src: "/gallery/wedding-01.jpeg", alt: "Foto potret Fatin dan Arfan semasa majlis pertunangan", caption: "Fatin & Arfan" },
 ];
 
 export function PhotoCarousel() {
@@ -47,11 +45,11 @@ export function PhotoCarousel() {
     <section className="photo-gallery" aria-labelledby="gallery-title" aria-roledescription="karusel">
       <header className="gallery-heading text-center">
         <p className="section-kicker font-montserrat">Momen yang bermakna</p>
-        <h2 id="gallery-title" className="font-greatvibes">Kenangan Kami</h2>
+        <h2 id="gallery-title" className="font-greatvibes">Majlis Pertunangan</h2>
       </header>
       <div className="gallery-photo-mount">
         <div ref={viewportRef} id="wedding-photo-carousel" className="gallery-viewport" tabIndex={0}
-          onKeyDown={handleKeyboard} aria-label="Foto pengantin dan keluarga" aria-describedby="gallery-swipe-hint">
+          onKeyDown={handleKeyboard} aria-label="Foto majlis pertunangan Fatin dan Arfan" aria-describedby="gallery-swipe-hint">
           <div className="gallery-track">
             {photos.map((photo, index) => (
               <div key={photo.src} className="gallery-slide" role="group" aria-roledescription="slaid"
