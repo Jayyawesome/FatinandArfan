@@ -49,7 +49,7 @@ export function PhotoCarousel() {
       </header>
       <div className="gallery-photo-mount">
         <div ref={viewportRef} id="wedding-photo-carousel" className="gallery-viewport" tabIndex={0}
-          onKeyDown={handleKeyboard} aria-label="Foto majlis pertunangan Fatin dan Arfan" aria-describedby="gallery-swipe-hint">
+          onKeyDown={handleKeyboard} aria-label="Foto majlis pertunangan Fatin dan Arfan">
           <div className="gallery-track">
             {photos.map((photo, index) => (
               <div key={photo.src} className="gallery-slide" role="group" aria-roledescription="slaid"
@@ -89,7 +89,6 @@ export function PhotoCarousel() {
           <ChevronRight size={19} aria-hidden="true" />
         </button>
       </div>
-      <p id="gallery-swipe-hint" className="gallery-swipe-hint font-montserrat">Leret foto atau gunakan anak panah</p>
     </section>
   );
 }
